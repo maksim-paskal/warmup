@@ -25,6 +25,9 @@ var (
 	buildTime   string = "now"
 	buildGitTag string = "dev"
 )
+var isReady = false
+
+var listen *string = flag.String("listen", ":12380", "listen for health")
 var url *string = flag.String("url", "http://127.0.0.1:3000", "target url")
 var http_timeout *time.Duration = flag.Duration("http.timeout", 1*time.Second, "http.timeout")
 var try_timeout *time.Duration = flag.Duration("try.timeout", 1*time.Second, "time before next reguest")
@@ -35,6 +38,18 @@ func main() {
 	log.Printf("starting %s-%s...\n", buildGitTag, buildTime)
 	flag.Parse()
 
+	go check()
+
+	http.HandleFunc("/ready", ready)
+	http.HandleFunc("/healthz", healthz)
+	err := http.ListenAndServe(*listen, nil)
+
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+func check() {
 	client := http.Client{
 		Timeout: *http_timeout,
 	}
@@ -64,5 +79,21 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+}
+func ready(w http.ResponseWriter, r *http.Request) {
+	if !isReady {
+		http.Error(w, "url not ready", http.StatusInternalServerError)
+		return
+	}
+	_, err := w.Write([]byte("ok"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+func healthz(w http.ResponseWriter, r *http.Request) {
+	_, err := w.Write([]byte("ok"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
