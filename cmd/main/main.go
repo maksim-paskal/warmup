@@ -15,31 +15,28 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 )
 
-func main() {
-	log.Println("starting...")
-	url := flag.String("url", "http://127.0.0.1:3000", "target url")
-	http_timeout := flag.String("http.timeout", "1s", "http.timeout")
-	try_timeout := flag.String("try.timeout", "1s", "time before next reguest")
+var (
+	buildTime   string = "now"
+	buildGitTag string = "dev"
+)
+var url *string = flag.String("url", "http://127.0.0.1:3000", "target url")
+var http_timeout *time.Duration = flag.Duration("http.timeout", 1*time.Second, "http.timeout")
+var try_timeout *time.Duration = flag.Duration("try.timeout", 1*time.Second, "time before next reguest")
+var wait_httpStatus *int = flag.Int("wait.http.status", 200, "wait for http status")
+var resultFile *string = flag.String("result.file", "", "print ok to file")
 
+func main() {
+	log.Printf("starting %s-%s...\n", buildGitTag, buildTime)
 	flag.Parse()
 
-	http_timeout_d, err := time.ParseDuration(*http_timeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	try_timeout_d, err := time.ParseDuration(*try_timeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	client := http.Client{
-		Timeout: http_timeout_d,
+		Timeout: *http_timeout,
 	}
 
 	for {
@@ -55,12 +52,17 @@ func main() {
 		}
 		if resp != nil {
 			log.Printf("resp.StatusCode=%d\n", resp.StatusCode)
-			if resp.StatusCode == 404 {
+			if resp.StatusCode == *wait_httpStatus {
 				log.Println("condition completed")
 				break
 			}
 		}
-		time.Sleep(try_timeout_d)
+		time.Sleep(*try_timeout)
 	}
-
+	if len(*resultFile) > 0 {
+		err := ioutil.WriteFile(*resultFile, []byte("ok"), 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
