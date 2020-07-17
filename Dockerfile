@@ -1,7 +1,5 @@
 FROM golang:1.14 as build
 
-RUN printenv
-
 COPY ./ /usr/src/warmup/
 
 ENV GOOS=linux
