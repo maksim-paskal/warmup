@@ -32,7 +32,9 @@ var url *string = flag.String("url", "http://127.0.0.1:3000", "target url")
 var http_timeout *time.Duration = flag.Duration("http.timeout", 1*time.Second, "http.timeout")
 var try_timeout *time.Duration = flag.Duration("try.timeout", 1*time.Second, "time before next reguest")
 var wait_httpStatus *int = flag.Int("wait.http.status", 200, "wait for http status")
+var wait_success_probes *int = flag.Int("wait.success_probes", 3, "max success probes")
 var resultFile *string = flag.String("result.file", "", "print ok to file")
+var wait_httpStatusCount int = 0
 
 func main() {
 	log.Printf("starting %s-%s...\n", buildGitTag, buildTime)
@@ -68,9 +70,14 @@ func check() {
 		if resp != nil {
 			log.Printf("resp.StatusCode=%d\n", resp.StatusCode)
 			if resp.StatusCode == *wait_httpStatus {
-				log.Println("condition completed")
-				break
+				wait_httpStatusCount = wait_httpStatusCount + 1
+				log.Printf("wait_httpStatusCount=%d\n", wait_httpStatusCount)
 			}
+		}
+		if wait_httpStatusCount >= *wait_success_probes {
+			isReady = true
+			log.Println("condition completed")
+			break
 		}
 		time.Sleep(*try_timeout)
 	}
