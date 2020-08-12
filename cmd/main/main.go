@@ -77,6 +77,8 @@ func check() {
 			if resp.StatusCode == *wait_httpStatus {
 				wait_httpStatusCount = wait_httpStatusCount + 1
 				log.Printf("wait_httpStatusCount=%d\n", wait_httpStatusCount)
+			} else {
+				wait_httpStatusCount = 0
 			}
 		}
 		if wait_httpStatusCount >= *wait_success_probes {
