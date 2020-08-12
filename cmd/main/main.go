@@ -35,6 +35,7 @@ var wait_httpStatus *int = flag.Int("wait.http.status", 200, "wait for http stat
 var wait_success_probes *int = flag.Int("wait.success_probes", 3, "max success probes")
 var resultFile *string = flag.String("result.file", "", "print ok to file")
 var wait_httpStatusCount int = 0
+var host *string = flag.String("host", "", "change host")
 
 func main() {
 	log.Printf("starting %s-%s...\n", buildGitTag, buildTime)
@@ -60,6 +61,10 @@ func check() {
 		req, err := http.NewRequest("GET", *url, nil)
 		if err != nil {
 			log.Println(err)
+		}
+
+		if len(*host) > 0 {
+			req.Host = *host
 		}
 
 		resp, err := client.Do(req)
