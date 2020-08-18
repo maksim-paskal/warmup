@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,10 @@ var (
 	buildGitTag string = "dev"
 )
 var isReady = false
+
+const (
+	WARMUP_HEADER = "X-Warmup-Request"
+)
 
 var listen *string = flag.String("listen", ":12380", "listen for health")
 var url *string = flag.String("url", "http://127.0.0.1:3000", "target url")
@@ -36,6 +41,8 @@ var wait_success_probes *int = flag.Int("wait.success_probes", 3, "max success p
 var resultFile *string = flag.String("result.file", "", "print ok to file")
 var wait_httpStatusCount int = 0
 var host *string = flag.String("host", "", "change host")
+var insertWarmupHeader *bool = flag.Bool("insert-warmup-header", true, "inserts to request header "+WARMUP_HEADER)
+var headers *string = flag.String("headers", "", "add headers to request - example X-Test1=1,X-Test2=2")
 
 func main() {
 	log.Printf("starting %s-%s...\n", buildGitTag, buildTime)
@@ -65,6 +72,21 @@ func check() {
 
 		if len(*host) > 0 {
 			req.Host = *host
+		}
+
+		if *insertWarmupHeader {
+			req.Header.Add(WARMUP_HEADER, "true")
+		}
+
+		if len(*headers) > 0 {
+			for _, hValue := range strings.Split(*headers, ",") {
+				k := strings.Split(hValue, "=")
+				if len(k) == 2 {
+					req.Header.Add(k[0], k[1])
+				} else {
+					log.Printf("WARN header %s - invalid\n", hValue)
+				}
+			}
 		}
 
 		resp, err := client.Do(req)
