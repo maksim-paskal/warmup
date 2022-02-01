@@ -59,7 +59,7 @@ func main() {
 	}
 }
 
-func check() { //nolint:funlen,cyclop,gocognit
+func check() { //nolint:funlen,cyclop
 	client := http.Client{
 		Timeout: *httpTimeout,
 	}
@@ -70,6 +70,8 @@ func check() { //nolint:funlen,cyclop,gocognit
 		req, err := http.NewRequestWithContext(ctx, "GET", *url, nil)
 		if err != nil {
 			log.Println(err)
+
+			continue
 		}
 
 		if len(*host) > 0 {
@@ -94,21 +96,19 @@ func check() { //nolint:funlen,cyclop,gocognit
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Println(err)
+
+			continue
 		}
 
-		if resp.Body != nil {
-			defer resp.Body.Close()
-		}
+		resp.Body.Close()
 
-		if resp != nil {
-			log.Printf("resp.StatusCode=%d\n", resp.StatusCode)
+		log.Printf("resp.StatusCode=%d\n", resp.StatusCode)
 
-			if resp.StatusCode == *waitHTTPStatus {
-				waitHTTPStatusCount++
-				log.Printf("waitHTTPStatusCount=%d\n", waitHTTPStatusCount)
-			} else {
-				waitHTTPStatusCount = 0
-			}
+		if resp.StatusCode == *waitHTTPStatus {
+			waitHTTPStatusCount++
+			log.Printf("waitHTTPStatusCount=%d\n", waitHTTPStatusCount)
+		} else {
+			waitHTTPStatusCount = 0
 		}
 
 		if waitHTTPStatusCount >= *waitSuccessProbes {
