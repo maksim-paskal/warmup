@@ -67,6 +67,8 @@ func check() { //nolint:funlen,cyclop
 	ctx := context.Background()
 
 	for {
+		time.Sleep(*tryTimeout)
+
 		req, err := http.NewRequestWithContext(ctx, "GET", *url, nil)
 		if err != nil {
 			log.Println(err)
@@ -118,8 +120,6 @@ func check() { //nolint:funlen,cyclop
 
 			break
 		}
-
-		time.Sleep(*tryTimeout)
 	}
 
 	if len(*resultFile) > 0 {
