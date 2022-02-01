@@ -1,7 +1,11 @@
-.PHONY: test
 test:
-	@./scripts/test.sh
-build:
+	./scripts/validate-license.sh
+	go fmt ./cmd/...
+	go vet ./cmd/...
 	go mod tidy
-	@./scripts/validate-license.sh
-	docker build . -t paskalmaksim/warmup:dev
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run -v
+
+build:
+	go run github.com/goreleaser/goreleaser@latest build --rm-dist --snapshot
+	mv ./dist/warmup_linux_amd64/warmup warmup
+	docker build --pull . -t paskalmaksim/warmup:dev
