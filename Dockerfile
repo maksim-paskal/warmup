@@ -1,18 +1,10 @@
-FROM golang:1.14 as build
-
-COPY ./ /usr/src/warmup/
-
-ENV GOOS=linux
-ENV GOARCH=amd64
-ENV CGO_ENABLED=0
-
-RUN cd /usr/src/warmup \
-  && go mod download \
-  && go mod verify \
-  && go build -v -o warmup -ldflags "-X main.buildTime=$(date +"%Y%m%d%H%M%S") -X main.buildGitTag=`git describe --exact-match --tags $(git log -n1 --pretty='%h')`" ./cmd/main
-
 FROM alpine:latest
 
-COPY --from=build /usr/src/warmup/warmup /usr/local/bin/warmup
+COPY ./warmup /app/warmup
 
-CMD /usr/local/bin/warmup
+RUN addgroup -g 101 -S app \
+&& adduser -u 101 -D -S -G app app
+
+USER 101
+
+ENTRYPOINT [ "/app/warmup" ]

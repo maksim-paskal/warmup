@@ -14,6 +14,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"io/ioutil"
 	"log"
@@ -22,50 +23,51 @@ import (
 	"time"
 )
 
-var (
-	buildTime   string = "now"
-	buildGitTag string = "dev"
-)
-var isReady = false
-
 const (
-	WARMUP_HEADER = "X-Warmup-Request"
+	warmupHeader            = "X-Warmup-Request"
+	defaultMaxSuccessProbes = 3
 )
 
-var listen *string = flag.String("listen", ":12380", "listen for health")
-var url *string = flag.String("url", "http://127.0.0.1:3000", "target url")
-var http_timeout *time.Duration = flag.Duration("http.timeout", 1*time.Second, "http.timeout")
-var try_timeout *time.Duration = flag.Duration("try.timeout", 1*time.Second, "time before next reguest")
-var wait_httpStatus *int = flag.Int("wait.http.status", 200, "wait for http status")
-var wait_success_probes *int = flag.Int("wait.success_probes", 3, "max success probes")
-var resultFile *string = flag.String("result.file", "", "print ok to file")
-var wait_httpStatusCount int = 0
-var host *string = flag.String("host", "", "change host")
-var insertWarmupHeader *bool = flag.Bool("insert-warmup-header", true, "inserts to request header "+WARMUP_HEADER)
-var headers *string = flag.String("headers", "", "add headers to request - example X-Test1=1,X-Test2=2")
+var (
+	gitVersion          = "dev"
+	isReady             = false
+	listen              = flag.String("listen", ":12380", "listen for health")
+	url                 = flag.String("url", "http://127.0.0.1:3000", "target url")
+	httpTimeout         = flag.Duration("http.timeout", 1*time.Second, "http.timeout")
+	tryTimeout          = flag.Duration("try.timeout", 1*time.Second, "time before next reguest")
+	waitHTTPStatus      = flag.Int("wait.http.status", http.StatusOK, "wait for http status")
+	waitSuccessProbes   = flag.Int("wait.success_probes", defaultMaxSuccessProbes, "max success probes")
+	resultFile          = flag.String("result.file", "", "print ok to file")
+	waitHTTPStatusCount = 0
+	host                = flag.String("host", "", "change host")
+	insertWarmupHeader  = flag.Bool("insert-warmup-header", true, "inserts to request header "+warmupHeader)
+	headers             = flag.String("headers", "", "add headers to request - example X-Test1=1,X-Test2=2")
+)
 
 func main() {
-	log.Printf("starting %s-%s...\n", buildGitTag, buildTime)
+	log.Printf("starting %s...\n", gitVersion)
 	flag.Parse()
 
 	go check()
 
 	http.HandleFunc("/ready", ready)
 	http.HandleFunc("/healthz", healthz)
-	err := http.ListenAndServe(*listen, nil)
 
+	err := http.ListenAndServe(*listen, nil)
 	if err != nil {
 		log.Panic(err)
 	}
 }
 
-func check() {
+func check() { //nolint:funlen,cyclop,gocognit
 	client := http.Client{
-		Timeout: *http_timeout,
+		Timeout: *httpTimeout,
 	}
 
+	ctx := context.Background()
+
 	for {
-		req, err := http.NewRequest("GET", *url, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", *url, nil)
 		if err != nil {
 			log.Println(err)
 		}
@@ -75,13 +77,13 @@ func check() {
 		}
 
 		if *insertWarmupHeader {
-			req.Header.Add(WARMUP_HEADER, "true")
+			req.Header.Add(warmupHeader, "true")
 		}
 
 		if len(*headers) > 0 {
 			for _, hValue := range strings.Split(*headers, ",") {
 				k := strings.Split(hValue, "=")
-				if len(k) == 2 {
+				if len(k) == 2 { //nolint:gomnd
 					req.Header.Add(k[0], k[1])
 				} else {
 					log.Printf("WARN header %s - invalid\n", hValue)
@@ -90,46 +92,58 @@ func check() {
 		}
 
 		resp, err := client.Do(req)
-
 		if err != nil {
 			log.Println(err)
 		}
+
+		if resp.Body != nil {
+			defer resp.Body.Close()
+		}
+
 		if resp != nil {
 			log.Printf("resp.StatusCode=%d\n", resp.StatusCode)
-			if resp.StatusCode == *wait_httpStatus {
-				wait_httpStatusCount = wait_httpStatusCount + 1
-				log.Printf("wait_httpStatusCount=%d\n", wait_httpStatusCount)
+
+			if resp.StatusCode == *waitHTTPStatus {
+				waitHTTPStatusCount++
+				log.Printf("waitHTTPStatusCount=%d\n", waitHTTPStatusCount)
 			} else {
-				wait_httpStatusCount = 0
+				waitHTTPStatusCount = 0
 			}
 		}
-		if wait_httpStatusCount >= *wait_success_probes {
+
+		if waitHTTPStatusCount >= *waitSuccessProbes {
 			isReady = true
+
 			log.Println("condition completed")
+
 			break
 		}
-		time.Sleep(*try_timeout)
+
+		time.Sleep(*tryTimeout)
 	}
+
 	if len(*resultFile) > 0 {
-		err := ioutil.WriteFile(*resultFile, []byte("ok"), 0644)
+		err := ioutil.WriteFile(*resultFile, []byte("ok"), 0o644) //nolint:gosec,gomnd
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	}
 }
+
 func ready(w http.ResponseWriter, r *http.Request) {
 	if !isReady {
 		http.Error(w, "url not ready", http.StatusInternalServerError)
+
 		return
 	}
-	_, err := w.Write([]byte("ok"))
-	if err != nil {
+
+	if _, err := w.Write([]byte("ok")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
+
 func healthz(w http.ResponseWriter, r *http.Request) {
-	_, err := w.Write([]byte("ok"))
-	if err != nil {
+	if _, err := w.Write([]byte("ok")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
